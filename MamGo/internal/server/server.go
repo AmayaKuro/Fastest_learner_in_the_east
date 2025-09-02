@@ -11,18 +11,21 @@ import (
 )
 
 type Server struct {
-	port int
+	address string
+	port    int
 }
 
 func NewServer() *http.Server {
+	address := os.Getenv("ADDRESS")
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	NewServer := &Server{
-		port: port,
+		address: address,
+		port:    port,
 	}
 
 	// Declare Server config
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", NewServer.port),
+		Addr:         fmt.Sprintf("%s:%d", NewServer.address, NewServer.port),
 		Handler:      NewServer.RegisterRoutes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
