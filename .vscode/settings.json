@@ -6,5 +6,6 @@
         "format": "cpp",
         "system_error": "cpp",
         "regex": "cpp"
-    }
+    },
+    "java.configuration.updateBuildConfiguration": "interactive"
 }
