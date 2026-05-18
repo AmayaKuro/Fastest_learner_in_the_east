@@ -1,6 +1,7 @@
 package com.http_server;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
@@ -25,7 +26,7 @@ public class ServerHandler {
             request = parseRequest();
             response = buildDefaultResponse();
 
-            ok();
+            ok("{'body': 'works!'}");
             socket.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -38,47 +39,45 @@ public class ServerHandler {
         BufferedReader input = new BufferedReader(
                 new InputStreamReader(socket.getInputStream()));
 
-        parseRequestLine(input.readLine(), requestData); // Request line
-        List<String> headers = new ArrayList<>();
-        for (String line; !(line = input.readLine()).isEmpty();) {
-            headers.add(line);
-        }
-        parseHeaders(headers, requestData);
-        // parseBody(input.readAllAsString(), requestData);
+        parseRequestLine(input, requestData);
+        parseHeaders(input, requestData);
+        parseBody(input, requestData);
 
         System.out.println("Client says: " + requestData);
         return requestData;
     }
 
-    public void parseRequestLine(String requestLine, RequestData requestData) {
+    public void parseRequestLine(BufferedReader reader, RequestData requestData) throws IOException {
+        String requestLine = reader.readLine();
+
         var parts = requestLine.split(" ");
         requestData.method = parts[0];
         requestData.url = parts[1];
         requestData.protocol = parts[2];
     }
 
-    public void parseHeaders(List<String> headerLines, RequestData requestData) {
-        for (int i = 1; i < headerLines.size(); i++) {
-            var headerParts = headerLines.get(i).split(":");
+    public void parseHeaders(BufferedReader reader, RequestData requestData) throws IOException {
+        for (String line; !(line = reader.readLine()).isEmpty();) {
+            var headerParts = line.split(":");
             var headerName = headerParts[0].toLowerCase();
             var headerValue = headerParts[1].trim();
             requestData.headers.put(headerName, headerValue);
         }
     }
 
-    public void parseBody(String raw, RequestData requestData) {
+    public void parseBody(BufferedReader reader, RequestData requestData) throws IOException {
+
         if (requestData.headers.containsKey("content-length")) {
             try {
                 var contentLength = Integer.parseInt(requestData.headers.get("content-length"));
-                var body = raw.substring(0, contentLength);
+                var body = reader.readLine().substring(0, contentLength);
                 requestData.body = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             } catch (NumberFormatException e) {
                 requestData.body = new byte[0];
             }
         } else if (requestData.headers.containsKey("transfer-encoding")) {
-            // Handle chunked transfer encoding
-            requestData.body = raw.getBytes(java.nio.charset.StandardCharsets.UTF_8); // Placeholder for actual chunked
-                                                                                      // parsing logic
+            // Placeholder for actual chunked parsing logic
+            requestData.body = reader.readLine().getBytes(java.nio.charset.StandardCharsets.UTF_8); //
         } else {
             requestData.body = new byte[0];
         }
