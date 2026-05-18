@@ -1,4 +1,4 @@
-package http_java.main.src.test.java.com.http_server;
+package com.http_server;
 
 import static org.junit.Assert.assertTrue;
 

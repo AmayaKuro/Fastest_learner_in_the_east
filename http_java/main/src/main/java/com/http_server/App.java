@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import ServerHandler;
-
 public class App {
     public static void main(String[] args) throws Exception {
         int port = 8080;
@@ -20,7 +18,7 @@ public class App {
 
                 new Thread(() -> {
                     // Handle the client request
-                    var handler = new ServerHandler(socket);
+                    ServerHandler handler = new ServerHandler(socket);
                     handler.handleRequest();
                 }).start();
             }

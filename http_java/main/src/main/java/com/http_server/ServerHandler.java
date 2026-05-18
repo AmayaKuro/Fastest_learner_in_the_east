@@ -4,14 +4,16 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import com.http_server.Model.RequestData;
+import com.http_server.Model.ResponseData;
 
 public class ServerHandler {
     public Socket socket;
     public RequestData request;
-    // TODO: Build responseData so that it can be used to generate the response
     public ResponseData response;
 
     public ServerHandler(Socket socket) {
@@ -23,6 +25,7 @@ public class ServerHandler {
             request = parseRequest();
             response = buildDefaultResponse();
 
+            ok();
             socket.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -31,19 +34,19 @@ public class ServerHandler {
     }
 
     public RequestData parseRequest() throws Exception {
-        var requestData = new RequestData();
+        RequestData requestData = new RequestData();
         BufferedReader input = new BufferedReader(
                 new InputStreamReader(socket.getInputStream()));
-        String data = input.readAllAsString();
 
-        var lines = data.split("\r\n\n\r");
-        var headerLines = lines[0].split("\r\n");
+        parseRequestLine(input.readLine(), requestData); // Request line
+        List<String> headers = new ArrayList<>();
+        for (String line; !(line = input.readLine()).isEmpty();) {
+            headers.add(line);
+        }
+        parseHeaders(headers, requestData);
+        // parseBody(input.readAllAsString(), requestData);
 
-        parseRequestLine(headerLines[0], requestData);
-        parseHeaders(headerLines, requestData);
-        parseBody(lines[1], requestData);
-
-        System.out.println("Client says: " + data);
+        System.out.println("Client says: " + requestData);
         return requestData;
     }
 
@@ -54,9 +57,9 @@ public class ServerHandler {
         requestData.protocol = parts[2];
     }
 
-    public void parseHeaders(String[] headerLines, RequestData requestData) {
-        for (int i = 1; i < headerLines.length; i++) {
-            var headerParts = headerLines[i].split(":");
+    public void parseHeaders(List<String> headerLines, RequestData requestData) {
+        for (int i = 1; i < headerLines.size(); i++) {
+            var headerParts = headerLines.get(i).split(":");
             var headerName = headerParts[0].toLowerCase();
             var headerValue = headerParts[1].trim();
             requestData.headers.put(headerName, headerValue);
@@ -67,15 +70,17 @@ public class ServerHandler {
         if (requestData.headers.containsKey("content-length")) {
             try {
                 var contentLength = Integer.parseInt(requestData.headers.get("content-length"));
-                requestData.body = raw.substring(0, contentLength);
+                var body = raw.substring(0, contentLength);
+                requestData.body = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             } catch (NumberFormatException e) {
-                requestData.body = "";
+                requestData.body = new byte[0];
             }
         } else if (requestData.headers.containsKey("transfer-encoding")) {
             // Handle chunked transfer encoding
-            requestData.body = raw; // Placeholder for actual chunked parsing logic
+            requestData.body = raw.getBytes(java.nio.charset.StandardCharsets.UTF_8); // Placeholder for actual chunked
+                                                                                      // parsing logic
         } else {
-            requestData.body = "";
+            requestData.body = new byte[0];
         }
     }
 
@@ -85,6 +90,7 @@ public class ServerHandler {
         response.statusCode = 200;
         response.statusMessage = "OK";
         response.headers = new java.util.HashMap<>(Map.of(
+                "Server", "http_java",
                 "Content-Type", "text/plain",
                 "Content-Length", "0"));
         response.body = "Hello, from server!".getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -92,28 +98,56 @@ public class ServerHandler {
         return response;
     }
 
+    public void ok() {
+        handleResponse(200, "OK", null);
+    }
+
     public void ok(Object body) {
         handleResponse(200, "OK", body);
+    }
+
+    public void created() {
+        handleResponse(201, "Created", null);
     }
 
     public void created(Object body) {
         handleResponse(201, "Created", body);
     }
 
+    public void accepted() {
+        handleResponse(202, "Accepted", null);
+    }
+
     public void accepted(Object body) {
         handleResponse(202, "Accepted", body);
+    }
+
+    public void badRequest() {
+        handleResponse(400, "Bad Request", null);
     }
 
     public void badRequest(Object body) {
         handleResponse(400, "Bad Request", body);
     }
 
+    public void notAllowed() {
+        handleResponse(405, "Method Not Allowed", null);
+    }
+
     public void notAllowed(Object body) {
         handleResponse(405, "Method Not Allowed", body);
     }
 
+    public void notFound() {
+        handleResponse(404, "Not Found", null);
+    }
+
     public void notFound(Object body) {
         handleResponse(404, "Not Found", body);
+    }
+
+    public void internalServerError() {
+        handleResponse(500, "Internal Server Error", null);
     }
 
     public void internalServerError(Object body) {
@@ -124,11 +158,11 @@ public class ServerHandler {
         response.statusCode = statusCode;
         response.statusMessage = statusMessage;
 
-        if (bodyObj == null) {
-            response.headers.put("Content-Length", "0");
-        }
-
         switch (bodyObj) {
+            case null: {
+                response.headers.put("Content-Length", "0");
+                break;
+            }
             case String s: {
                 byte[] bytes = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 response.headers.put("Content-Length", String.valueOf(bytes.length));
@@ -143,42 +177,23 @@ public class ServerHandler {
                 break;
             }
             case Object obj: {
-                StringBuilder jsonBuilder = new StringBuilder();
-                jsonBuilder.append("{");
-                java.lang.reflect.Field[] fields = obj.getClass().getDeclaredFields();
-                for (int i = 0; i < fields.length; i++) {
-                    fields[i].setAccessible(true);
-                    jsonBuilder.append("\"").append(fields[i].getName()).append("\":");
-                    try {
-                        Object value = fields[i].get(obj);
-                        if (value instanceof String) {
-                            jsonBuilder.append("\"").append(value).append("\"");
-                        } else {
-                            jsonBuilder.append(value);
-                        }
-                    } catch (IllegalAccessException e) {
-                        jsonBuilder.append("null");
-                    }
-                    if (i < fields.length - 1) {
-                        jsonBuilder.append(",");
-                    }
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    var bytes = mapper.writeValueAsBytes(obj);
+                    response.headers.put("Content-Length", String.valueOf(bytes.length));
+                    response.headers.put("Content-Type", "application/json");
+                    response.body = bytes;
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-                jsonBuilder.append("}");
-                byte[] bytes = jsonBuilder.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                response.headers.put("Content-Length", String.valueOf(bytes.length));
-                response.headers.put("Content-Type", "application/json");
-                response.body = bytes;
                 break;
             }
-            default:
-                break;
         }
 
         // For HEAD requests, we should not include the body in the response
         if (request.method.equals("HEAD")) {
             response.body = null;
         }
-
         sendResponse();
     }
 
