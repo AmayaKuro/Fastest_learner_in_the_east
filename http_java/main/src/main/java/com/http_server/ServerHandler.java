@@ -5,10 +5,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import com.http_server.Model.RequestData;
 import com.http_server.Model.ResponseData;
 
@@ -16,6 +20,7 @@ public class ServerHandler {
     public Socket socket;
     public RequestData request;
     public ResponseData response;
+    public Map<String, Handler> routes = new HashMap<>();
 
     public ServerHandler(Socket socket) {
         this.socket = socket;
@@ -26,22 +31,43 @@ public class ServerHandler {
             request = parseRequest();
             response = buildDefaultResponse();
 
-            ok("{'body': 'works!'}");
+            String routeKey = request.method + " " + request.url;
+            Handler handler = routes.get(routeKey);
+
+            if (handler != null) {
+                handler.handle(this);
+            } else {
+                notFound("{\"error\": \"Route not found\"}");
+            }
+
             socket.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        // Further processing of requestData
     }
 
     public RequestData parseRequest() throws Exception {
         RequestData requestData = new RequestData();
         BufferedReader input = new BufferedReader(
                 new InputStreamReader(socket.getInputStream()));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        
+        Callable<Void> parseTask = () -> {
+            parseRequestLine(input, requestData);
+            parseHeaders(input, requestData);
+            parseBody(input, requestData);
+            return null;
+        };
 
-        parseRequestLine(input, requestData);
-        parseHeaders(input, requestData);
-        parseBody(input, requestData);
+        try {
+            Future<Void> future = executor.submit(parseTask);
+            future.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            e.printStackTrace();
+            throw new IOException("Time out");
+        } finally {
+            executor.shutdownNow();
+        }
 
         System.out.println("Client says: " + requestData);
         return requestData;
@@ -219,5 +245,9 @@ public class ServerHandler {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void use(String method, String path, Handler handler) {
+        routes.put(method.toUpperCase() + " " + path, handler);
     }
 }

@@ -3,15 +3,16 @@ package com.http_server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 
 public class App {
     public static void main(String[] args) throws Exception {
         int port = 8080;
 
-
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Server started. Waiting for client...");
-           
+
             while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("Client connected!");
@@ -19,6 +20,11 @@ public class App {
                 new Thread(() -> {
                     // Handle the client request
                     ServerHandler handler = new ServerHandler(socket);
+                    
+                    handler.use("GET", "/api/stonk", ctx -> {
+                        ctx.ok("{\"body\": \"stonks go up!\"}");
+                    });
+
                     handler.handleRequest();
                 }).start();
             }
