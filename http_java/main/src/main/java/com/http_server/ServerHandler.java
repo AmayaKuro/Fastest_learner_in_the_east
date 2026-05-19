@@ -37,7 +37,7 @@ public class ServerHandler {
             if (handler != null) {
                 handler.handle(this);
             } else {
-                notFound("{\"error\": \"Route not found\"}");
+                notFound();
             }
 
             socket.close();
