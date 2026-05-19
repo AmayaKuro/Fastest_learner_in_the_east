@@ -17,7 +17,7 @@ public class RequestData {
                 ", url='" + url + '\'' +
                 ", protocol='" + protocol + '\'' +
                 ", headers=" + headers +
-                // ", body=" + new String(body) +
+                ", body=" + (body == null ? null : new String(body)) +
                 '}';
     }
 }

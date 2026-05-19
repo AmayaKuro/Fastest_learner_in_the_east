@@ -1,7 +1,9 @@
 package com.http_server;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
@@ -13,8 +15,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.http_server.Model.RequestData;
 import com.http_server.Model.ResponseData;
+import com.http_server.Utils.BufferInputStream;
 
 public class ServerHandler {
     public Socket socket;
@@ -32,7 +37,7 @@ public class ServerHandler {
             response = buildDefaultResponse();
 
             String routeKey = request.method + " " + request.url;
-            Handler handler = routes.get(routeKey);
+            Handler handler = routes.get(routeKey.toLowerCase());
 
             if (handler != null) {
                 handler.handle(this);
@@ -47,15 +52,15 @@ public class ServerHandler {
     }
 
     public RequestData parseRequest() throws Exception {
+        socket.setSoTimeout(10000);
+
         RequestData requestData = new RequestData();
-        BufferedReader input = new BufferedReader(
-                new InputStreamReader(socket.getInputStream()));
+        var input = new BufferedInputStream(socket.getInputStream());
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        
+
         Callable<Void> parseTask = () -> {
             parseRequestLine(input, requestData);
             parseHeaders(input, requestData);
-            parseBody(input, requestData);
             return null;
         };
 
@@ -69,41 +74,39 @@ public class ServerHandler {
             executor.shutdownNow();
         }
 
+        parseBody(input, requestData);
+
         System.out.println("Client says: " + requestData);
         return requestData;
     }
 
-    public void parseRequestLine(BufferedReader reader, RequestData requestData) throws IOException {
-        String requestLine = reader.readLine();
-
+    public void parseRequestLine(BufferedInputStream stream, RequestData requestData) throws IOException {
+        String requestLine = BufferInputStream.readLine(stream);
         var parts = requestLine.split(" ");
         requestData.method = parts[0];
         requestData.url = parts[1];
         requestData.protocol = parts[2];
     }
 
-    public void parseHeaders(BufferedReader reader, RequestData requestData) throws IOException {
-        for (String line; !(line = reader.readLine()).isEmpty();) {
-            var headerParts = line.split(":");
+    public void parseHeaders(BufferedInputStream stream, RequestData requestData) throws IOException {
+        for (String line; !(line = BufferInputStream.readLine(stream)).isEmpty();) {
+            var headerParts = line.split(":", 2);
             var headerName = headerParts[0].toLowerCase();
             var headerValue = headerParts[1].trim();
             requestData.headers.put(headerName, headerValue);
         }
     }
 
-    public void parseBody(BufferedReader reader, RequestData requestData) throws IOException {
-
+    public void parseBody(BufferedInputStream stream, RequestData requestData) throws IOException {
         if (requestData.headers.containsKey("content-length")) {
             try {
                 var contentLength = Integer.parseInt(requestData.headers.get("content-length"));
-                var body = reader.readLine().substring(0, contentLength);
-                requestData.body = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                var body = stream.readNBytes(contentLength);
+                requestData.body = body;
             } catch (NumberFormatException e) {
                 requestData.body = new byte[0];
             }
         } else if (requestData.headers.containsKey("transfer-encoding")) {
-            // Placeholder for actual chunked parsing logic
-            requestData.body = reader.readLine().getBytes(java.nio.charset.StandardCharsets.UTF_8); //
         } else {
             requestData.body = new byte[0];
         }
@@ -203,7 +206,7 @@ public class ServerHandler {
             }
             case Object obj: {
                 try {
-                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    ObjectMapper mapper = new ObjectMapper();
                     var bytes = mapper.writeValueAsBytes(obj);
                     response.headers.put("Content-Length", String.valueOf(bytes.length));
                     response.headers.put("Content-Type", "application/json");
@@ -248,6 +251,6 @@ public class ServerHandler {
     }
 
     public void use(String method, String path, Handler handler) {
-        routes.put(method.toUpperCase() + " " + path, handler);
+        routes.put((method + " " + path).toLowerCase(), handler);
     }
 }

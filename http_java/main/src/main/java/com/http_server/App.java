@@ -3,7 +3,9 @@ package com.http_server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class App {
@@ -20,9 +22,11 @@ public class App {
                 new Thread(() -> {
                     // Handle the client request
                     ServerHandler handler = new ServerHandler(socket);
-                    
+
                     handler.use("GET", "/api/stonk", ctx -> {
-                        ctx.ok("{\"body\": \"stonks go up!\"}");
+                        var list = new ArrayList<String>();
+                        list.add("{\"body\": \"stonks go up!\"}");
+                        ctx.ok(list);
                     });
 
                     handler.handleRequest();
