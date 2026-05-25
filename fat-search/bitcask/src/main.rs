@@ -64,7 +64,7 @@ fn main() {
             {
                 Ok(mut f) => {
                     let cs = Crc::<u32>::new(&crc::CRC_32_CKSUM).checksum(&buf);
-                    let err = f. write_fmt(format_args!("{},", cs));
+                    let err = f.write_fmt(format_args!("{},", cs));
                     if let Err(e) = err {
                         eprintln!("Error: Failed to write to database at {:?}: {}", args.db, e);
                         return;
