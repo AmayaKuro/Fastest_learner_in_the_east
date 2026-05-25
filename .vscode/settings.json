@@ -7,5 +7,8 @@
         "system_error": "cpp",
         "regex": "cpp"
     },
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "rust-analyzer.linkedProjects": [
+        "${workspaceFolder}/fat-search/bitcask/Cargo.toml"
+    ],
 }
