@@ -6,6 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use anyhow::bail;
 use crc::Crc;
 
 struct LogMap {
@@ -65,7 +66,7 @@ impl Bitcask {
         }
     }
 
-    pub fn set(&mut self, key: String, value: String) {
+    pub fn set(&mut self, key: String, value: String) -> anyhow::Result<bool> {
         let now = SystemTime::now();
         let ts = now
             .duration_since(UNIX_EPOCH)
@@ -100,14 +101,7 @@ impl Bitcask {
             Ok(mut f) => {
                 let current_position = f.seek(std::io::SeekFrom::End(0));
 
-                let err = f.write(buffer.as_bytes());
-                if let Err(e) = err {
-                    eprintln!(
-                        "Error: Failed to write to database at {:?}: {}",
-                        self.path, e
-                    );
-                    return;
-                }
+                f.write(buffer.as_bytes())?;
 
                 self.log_map.insert(
                     key.clone(),
@@ -122,10 +116,11 @@ impl Bitcask {
             }
             Err(e) => {
                 eprintln!("Error: Cannot access database at {:?}: {}", self.path, e);
-                return;
+                bail!(e);
             }
         }
 
         println!("SET {}={} in {:?} at {}", key, value, self.path, ts);
+        return Ok(true);
     }
 }

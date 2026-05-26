@@ -31,13 +31,20 @@ enum Action {
 fn main() {
     let args = Args::parse();
     let mut bitcask = Bitcask::new(std::path::PathBuf::from("db/cask.1"));
-    
+
     match args.action {
         Action::Get { key } => {
             bitcask.get(key);
         }
         Action::Set { key, value } => {
-            bitcask.set(key.clone(), value);
+            let result = bitcask.set(key.clone(), value);
+            if let Err(e) = result {
+                eprintln!(
+                    "Error: Failed to write to database at {:?}: {}",
+                    args.db, e
+                );
+                return;
+            }
 
             bitcask.get(key.clone());
         }
