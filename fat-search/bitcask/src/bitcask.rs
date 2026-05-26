@@ -2,7 +2,6 @@ use std::{
     collections::HashMap,
     fs::OpenOptions,
     io::{Read, Seek, Write},
-    ops::Add,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -32,9 +31,9 @@ impl Bitcask {
     pub fn get(&mut self, key: String) {
         if let Some(log_entry) = self
             .log_map
-            .get(&self.path.to_string_lossy().to_string().add(&key))
+            .get(&key)
         {
-            match OpenOptions::new().read(true).open(&self.path) {
+            match OpenOptions::new().read(true).open(log_entry.file_id.clone()) {
                 Ok(mut f) => {
                     if let Err(e) = f.seek(std::io::SeekFrom::Start(log_entry.value_position)) {
                         eprintln!(
@@ -111,7 +110,7 @@ impl Bitcask {
                 }
 
                 self.log_map.insert(
-                    self.path.to_string_lossy().to_string().add(&key),
+                    key.clone(),
                     LogMap {
                         file_id: self.path.to_string_lossy().to_string(),
                         value_size: buffer.len(),
