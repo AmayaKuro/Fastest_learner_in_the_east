@@ -23,9 +23,40 @@ pub struct Bitcask {
 
 impl Bitcask {
     pub fn new(path: PathBuf) -> Self {
+        let mut log_map = HashMap::new();
+        if let Ok(f) = std::fs::File::open(&path) {
+            use std::io::{BufRead, BufReader};
+            let mut reader = BufReader::new(f);
+            let mut current_position = 0;
+            let mut line = String::new();
+            while let Ok(bytes_read) = reader.read_line(&mut line) {
+                if bytes_read == 0 {
+                    break;
+                }
+                
+                let line_content = line.trim_end_matches('\n');
+                let parts: Vec<&str> = line_content.splitn(6, ',').collect();
+                if parts.len() == 6 {
+                    let ts_str = parts[1];
+                    let key = parts[4].to_string();
+                    
+                    if let Ok(timestamp) = ts_str.parse::<u64>() {
+                        log_map.insert(key, LogMap {
+                            file_id: path.to_string_lossy().to_string(),
+                            value_size: bytes_read,
+                            value_position: current_position as u64,
+                            timestamp,
+                        });
+                    }
+                }
+                current_position += bytes_read;
+                line.clear();
+            }
+        }
+
         Self {
-            path: path,
-            log_map: HashMap::new(),
+            path,
+            log_map,
         }
     }
 
